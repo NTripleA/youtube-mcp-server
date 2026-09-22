@@ -1,17 +1,26 @@
 {
   "name": "youtube-mcp-server",
-  "version": "1.0.0",
-  "description": "Un servidor MCP para interactuar con YouTube",
+  "version": "3.0.0",
+  "description": "An MCP server for YouTube: public read tools plus channel-locked admin tools, over stdio or Streamable HTTP",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": ">=20.10.0"
+  },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "start:http": "node index.js --http",
+    "auth": "node scripts/auth.js",
+    "verify:analytics": "node scripts/verify-analytics.js",
+    "test": "node --test --import ./scripts/test-setup.js test/",
+    "check": "node scripts/check-syntax.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "latest",
-    "axios": "^1.6.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ajv": "^8.17.1",
     "dotenv": "^16.3.1",
-    "googleapis": "^171.4.0"
+    "googleapis": "^171.4.0",
+    "ipaddr.js": "^2.2.0"
   },
   "keywords": [
     "mcp",

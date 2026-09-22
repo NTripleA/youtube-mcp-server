@@ -1,0 +1,55 @@
+# Remote (Streamable HTTP) image for Raspberry Pi / ARM64.
+#
+# Build:
+#   docker build -f Dockerfile.remote -t youtube-mcp:latest .
+#
+# The container listens on 8000 INSIDE the container only. On the Pi it is
+# published to 127.0.0.1:8003, never to the LAN - see docker-compose.yml.
+
+FROM node:22-alpine
+
+# A fixed, documented UID/GID. The bind-mounted state directory on the host must
+# be owned by THIS id: an image-layer chown cannot affect a bind mount.
+#   sudo install -d -o 10001 -g 10001 -m 700 /opt/mcp/youtube/state
+ARG APP_UID=10001
+ARG APP_GID=10001
+
+RUN addgroup -g ${APP_GID} -S app \
+    && adduser -u ${APP_UID} -G app -S -h /app app
+
+WORKDIR /app
+
+# Dependencies first so the layer caches across source edits.
+# `npm ci` requires package-lock.json, which is committed for exactly this.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+COPY index.js ./
+COPY src ./src
+COPY scripts ./scripts
+
+# Mount points. Ownership here only covers the case where NOTHING is mounted;
+# a bind mount brings the host's ownership with it.
+RUN mkdir -p /state /media && chown -R ${APP_UID}:${APP_GID} /state /media /app
+
+USER app
+
+ENV NODE_ENV=production \
+    MCP_TRANSPORT=http \
+    MCP_HTTP_PORT=8000 \
+    # 0.0.0.0 is required inside a container for the published port to reach the
+    # process. The generic default elsewhere is 127.0.0.1; exposure is
+    # controlled by publishing to 127.0.0.1 on the host, not by this value.
+    MCP_HTTP_HOST=0.0.0.0 \
+    YOUTUBE_TOKEN_FILE=/state/token.json \
+    YOUTUBE_MEDIA_DIR=/media
+
+# YOUTUBE_ENABLE_WRITES is deliberately NOT set here. It comes from the env
+# file, so the write switch is flipped without rebuilding the image.
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD node -e "fetch('http://127.0.0.1:'+(process.env.MCP_HTTP_PORT||8000)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", "index.js"]

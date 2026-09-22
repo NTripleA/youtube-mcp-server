@@ -1,0 +1,22 @@
+# Never let credentials or local state into the build context.
+.env
+.env.*
+!.env.example
+token.json
+*.token.json
+state/
+media/
+
+# Not needed at runtime
+.git
+.gitignore
+node_modules
+test
+docs
+README.md
+SOUL.md
+LICENSE
+.DS_Store
+*.log
+Dockerfile*
+docker-compose.yml

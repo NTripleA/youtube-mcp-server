@@ -1,0 +1,54 @@
+# Raspberry Pi deployment.
+#
+#   docker compose up -d --build youtube-mcp
+#
+# IMPORTANT: `docker restart` does NOT reload env_file. After editing
+# /opt/mcp/youtube/youtube-mcp.env you must recreate the container:
+#
+#   docker compose up -d --force-recreate youtube-mcp
+#
+# See docs/DEPLOY-PI.md.
+
+services:
+  youtube-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.remote
+    image: youtube-mcp:latest
+    container_name: youtube-mcp
+    restart: unless-stopped
+
+    # The runtime UID/GID. /opt/mcp/youtube/state on the HOST must be owned by
+    # 10001:10001 - a chown inside the image does not apply to a bind mount.
+    user: "10001:10001"
+
+    env_file:
+      - /opt/mcp/youtube/youtube-mcp.env
+
+    # Published to loopback ONLY. The container port is never reachable from the
+    # LAN; Cloudflare Tunnel is the only path in from outside the Pi.
+    ports:
+      - "127.0.0.1:8003:8000"
+
+    volumes:
+      # The DIRECTORY, not token.json alone: atomic replacement renames a
+      # temp file within this directory, which a single-file bind mount breaks.
+      - /opt/mcp/youtube/state:/state
+      # Thumbnails are only ever read.
+      - /opt/mcp/youtube/media:/media:ro
+
+    # Defence in depth: the process needs no extra privileges and writes only
+    # to /state and /tmp.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
